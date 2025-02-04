@@ -1,6 +1,8 @@
-# llmdog
+# LLMDog 🐶
 
-**llmdog** is a command-line tool designed to help you prepare files for LLM consumption. With an interactive terminal UI built on [Bubble Tea](https://github.com/charmbracelet/bubbletea) and styled with [Lip Gloss](https://github.com/charmbracelet/lipgloss), llmdog lets you navigate your file system, select files and directories (with support for Gitignore rules and recursive selection), and generate a Markdown-formatted output of your directory structure and file contents. The final output is automatically copied to your clipboard, streamlining your workflow for LLM-based projects.
+**LLMDog** is a command-line tool designed to help you prepare files for LLM consumption. With an interactive terminal UI built on [Bubble Tea](https://github.com/charmbracelet/bubbletea) and styled with [Lip Gloss](https://github.com/charmbracelet/lipgloss), LLMDog lets you navigate your file system, select files and directories (with support for Gitignore rules and recursive selection), and generate a Markdown-formatted output of your directory structure and file contents. The final output is automatically copied to your clipboard, streamlining your workflow for LLM-based projects.
+
+[![asciicast](https://asciinema.org/a/lq2kdE5H1efWxz8296EfZVfHk.svg)](https://asciinema.org/a/lq2kdE5H1efWxz8296EfZVfHk)
 
 > **Inspiration:** This project was inspired by [llmcat](https://github.com/azer/llmcat).
 
@@ -11,7 +13,7 @@
 - **Gitignore Support:** Automatically respects your `.gitignore` file to exclude irrelevant files.
 - **Markdown Output:** Generates a well-formatted Markdown report, complete with a file tree and file contents.
 - **Clipboard Integration:** The output is copied directly to your clipboard for quick sharing and use.
-- **Cross-Platform:** Built with Go, llmdog works on macOS, Linux, and Windows.
+- **Cross-Platform:** Built with Go, LLMDog works on macOS, Linux, and Windows.
 
 ## Installation
 
@@ -20,31 +22,31 @@
 Ensure you have [Go](https://golang.org/) installed (version 1.16 or higher is recommended). Then, clone the repository and build the application:
 
 ```bash
-git clone https://github.com/doganarif/llmdog.git
-cd llmdog
-go build -o llmdog ./cmd/llmdog
+git clone https://github.com/doganarif/LLMDog.git
+cd LLMDog
+go build -o LLMDog ./cmd/LLMDog
 ```
 
 ### Homebrew (macOS)
 
-For macOS users, you can install **llmdog** using Homebrew with my custom tap:
+For macOS users, you can install **LLMDog** using Homebrew with my custom tap:
 
 1. Tap the repository:
    ```bash
-   brew tap doganarif/llmdog
+   brew tap doganarif/LLMDog
    ```
 
-2. Install llmdog:
+2. Install LLMDog:
    ```bash
-   brew install llmdog
+   brew install LLMDog
    ```
 
 ## Usage
 
-Run **llmdog** from your terminal:
+Run **LLMDog** from your terminal:
 
 ```bash
-./llmdog [options]
+./LLMDog [options]
 ```
 
 ### Command-Line Options
@@ -68,7 +70,7 @@ Contributions are welcome! If you find bugs or have ideas for improvements, plea
 
 ## Development
 
-To run and develop **llmdog**, ensure you have the latest version of Go installed. Clone the repository, make your changes, and submit pull requests. Your contributions help improve the tool for everyone.
+To run and develop **LLMDog**, ensure you have the latest version of Go installed. Clone the repository, make your changes, and submit pull requests. Your contributions help improve the tool for everyone.
 
 ## Acknowledgements
 
