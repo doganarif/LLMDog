@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/doganarif/llmdog/internal/bookmarks"
 	"log"
 	"os"
 	"path/filepath"
@@ -108,6 +109,13 @@ type Model struct {
 	statusMessageExpiry time.Time
 	lock                sync.Mutex
 	isInSearchResults   bool
+	bookmarkStore       bookmarks.BookmarkStore
+	showBookmarksMenu   bool
+	bookmarksMenu       ui.BookmarksMenu
+	textInputModal      ui.TextInputModal
+	showTextInputModal  bool
+	textInputPurpose    string
+	tempBookmarkName    string
 }
 
 // New creates a new model
@@ -142,16 +150,24 @@ func New() *Model {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
+	bookmarkStore, err := bookmarks.LoadBookmarks()
+	if err != nil {
+		log.Printf("Warning: Could not load bookmarks: %v", err)
+	}
+
 	return &Model{
-		list:              l,
-		items:             items,
-		cwd:               cwd,
-		gitignoreRegexp:   gitRegex,
-		showPreview:       true,
-		spinner:           s,
-		fuzzyThreshold:    config.FuzzyThreshold,
-		contentSearchMode: config.ContentSearchMode,
-		config:            config,
+		list:               l,
+		items:              items,
+		cwd:                cwd,
+		gitignoreRegexp:    gitRegex,
+		showPreview:        true,
+		spinner:            s,
+		fuzzyThreshold:     config.FuzzyThreshold,
+		contentSearchMode:  config.ContentSearchMode,
+		config:             config,
+		bookmarkStore:      bookmarkStore,
+		showBookmarksMenu:  false,
+		showTextInputModal: false,
 	}
 }
 
@@ -733,6 +749,7 @@ func buildTree(root string, level int) string {
 }
 
 // Update updates the application state
+// Update updates the application state
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
@@ -783,6 +800,146 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Handle text input modal if active
+		if m.showTextInputModal {
+			switch msg.String() {
+			case "esc":
+				m.showTextInputModal = false
+				return m, nil
+
+			case "enter":
+				// Process based on purpose
+				inputValue := m.textInputModal.Value()
+				if inputValue == "" {
+					m.setStatusMessage("Bookmark name cannot be empty", 2)
+					m.showTextInputModal = false
+					return m, nil
+				}
+
+				switch m.textInputPurpose {
+				case "new_bookmark":
+					err := m.saveCurrentSelectionAsBookmark(inputValue, "")
+					if err != nil {
+						m.addError(err)
+					} else {
+						m.setStatusMessage(fmt.Sprintf("Saved bookmark: %s", inputValue), 2)
+					}
+
+				case "rename_bookmark":
+					err := m.renameBookmark(m.tempBookmarkName, inputValue)
+					if err != nil {
+						m.addError(err)
+					} else {
+						m.setStatusMessage(fmt.Sprintf("Renamed bookmark to: %s", inputValue), 2)
+					}
+
+				case "bookmark_description":
+					// Get the bookmark and update its description
+					bookmark, found := m.bookmarkStore.GetBookmark(m.tempBookmarkName)
+					if found {
+						bookmark.Description = inputValue
+						bookmark.Modified = time.Now()
+						err := m.bookmarkStore.SaveBookmark(bookmark)
+						if err != nil {
+							m.addError(err)
+						} else {
+							m.setStatusMessage("Updated bookmark description", 2)
+						}
+					}
+				}
+
+				m.showTextInputModal = false
+
+				// Refresh bookmarks menu if it's open
+				if m.showBookmarksMenu {
+					m.bookmarksMenu = ui.NewBookmarksMenu(
+						m.bookmarkStore.Bookmarks,
+						m.termWidth/2,
+						m.termHeight/2,
+					)
+				}
+
+				return m, nil
+
+			default:
+				// Pass other keys to text input
+				modal, cmd := m.textInputModal.Update(msg)
+				m.textInputModal = modal
+				return m, cmd
+			}
+		}
+
+		// Handle bookmarks menu if active
+		if m.showBookmarksMenu {
+			switch msg.String() {
+			case "esc":
+				m.showBookmarksMenu = false
+				return m, nil
+
+			case "enter":
+				// Apply selected bookmark
+				if name, ok := m.bookmarksMenu.SelectedBookmark(); ok {
+					err := m.applyBookmark(name)
+					if err != nil {
+						m.addError(err)
+					}
+					m.showBookmarksMenu = false
+				}
+				return m, nil
+
+			case "n":
+				// Create new bookmark
+				m.showBookmarksMenu = false
+				m.showNewBookmarkDialog()
+				return m, nil
+
+			case "d":
+				// Delete selected bookmark
+				if name, ok := m.bookmarksMenu.SelectedBookmark(); ok {
+					err := m.deleteBookmark(name)
+					if err != nil {
+						m.addError(err)
+					}
+
+					// Refresh bookmarks menu
+					m.bookmarksMenu = ui.NewBookmarksMenu(
+						m.bookmarkStore.Bookmarks,
+						m.termWidth/2,
+						m.termHeight/2,
+					)
+				}
+				return m, nil
+
+			case "r":
+				// Rename selected bookmark
+				m.showRenameBookmarkDialog()
+				return m, nil
+
+			case "i":
+				// Add/edit description for the bookmark
+				if name, ok := m.bookmarksMenu.SelectedBookmark(); ok {
+					bookmark, found := m.bookmarkStore.GetBookmark(name)
+					if found {
+						m.tempBookmarkName = name
+						m.textInputModal = ui.NewTextInputModal(
+							"Enter Bookmark Description",
+							bookmark.Description,
+							m.termWidth/2,
+						)
+						m.showTextInputModal = true
+						m.textInputPurpose = "bookmark_description"
+					}
+				}
+				return m, nil
+
+			default:
+				// Pass other keys to bookmarks menu
+				bmMenu, cmd := m.bookmarksMenu.Update(msg)
+				m.bookmarksMenu = bmMenu
+				return m, cmd
+			}
+		}
+
 		// Handle filtering state separately
 		if m.list.FilterState() == list.Filtering {
 			switch msg.String() {
@@ -869,6 +1026,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.deselectAll()
 				return m, nil
 
+			case "ctrl+b": // Toggle bookmarks menu
+				if !m.showBookmarksMenu {
+					m.bookmarksMenu = ui.NewBookmarksMenu(
+						m.bookmarkStore.Bookmarks,
+						m.termWidth/2,
+						m.termHeight/2,
+					)
+					m.showBookmarksMenu = true
+				} else {
+					m.showBookmarksMenu = false
+				}
+				return m, nil
+
+			case "ctrl+shift+b": // Save bookmark shortcut
+				m.showNewBookmarkDialog()
+				return m, nil
+
 			case "esc":
 				if m.showErrors {
 					m.showErrors = false
@@ -921,30 +1095,60 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the UI
+// View renders the UI
 func (m *Model) View() string {
 	if m.isLoading {
 		return fmt.Sprintf("%s %s", m.spinner.View(), m.loadingMessage)
 	}
 
+	// Base view creation
+	var mainView string
 	if !m.showPreview {
-		return ui.RenderHeader("llmdog") + "\n" +
+		mainView = ui.RenderHeader("llmdog") + "\n" +
 			m.list.View() + "\n" +
 			m.renderStatusBar()
+	} else {
+		// Calculate appropriate widths
+		listWidth := m.termWidth * 2 / 3            // File list gets 2/3 of width
+		previewWidth := m.termWidth - listWidth - 4 // Preview gets remaining space
+
+		m.list.SetWidth(listWidth)
+		previewStyle := ui.PreviewStyle.MaxWidth(previewWidth).MaxHeight(m.termHeight - 6)
+
+		leftPanel := m.list.View()
+		rightPanel := previewStyle.Render(ui.TruncatePreview(m.preview, m.termHeight-8))
+
+		mainView = ui.RenderHeader("llmdog") + "\n" +
+			lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 	}
 
-	// Calculate appropriate widths
-	listWidth := m.termWidth * 2 / 3            // File list gets 2/3 of width
-	previewWidth := m.termWidth - listWidth - 4 // Preview gets remaining space
+	// Show text input modal if active
+	if m.showTextInputModal {
+		mainView = lipgloss.Place(
+			m.termWidth,
+			m.termHeight-2, // Account for status bar
+			lipgloss.Center,
+			lipgloss.Center,
+			m.textInputModal.View(),
+			lipgloss.WithWhitespaceChars(" "),
+			lipgloss.WithWhitespaceForeground(lipgloss.Color("240")),
+		)
+	}
 
-	m.list.SetWidth(listWidth)
-	previewStyle := ui.PreviewStyle.MaxWidth(previewWidth).MaxHeight(m.termHeight - 6)
+	// Show bookmarks menu if active
+	if m.showBookmarksMenu {
+		mainView = lipgloss.Place(
+			m.termWidth,
+			m.termHeight-2, // Account for status bar
+			lipgloss.Center,
+			lipgloss.Center,
+			m.bookmarksMenu.View(),
+			lipgloss.WithWhitespaceChars(" "),
+			lipgloss.WithWhitespaceForeground(lipgloss.Color("240")),
+		)
+	}
 
-	leftPanel := m.list.View()
-	rightPanel := previewStyle.Render(ui.TruncatePreview(m.preview, m.termHeight-8))
-
-	mainView := ui.RenderHeader("llmdog") + "\n" +
-		lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
-
+	// Show error messages
 	if m.showErrors && len(m.errors) > 0 {
 		errorText := strings.Join(m.errors, "\n")
 		errorBox := lipgloss.NewStyle().
@@ -959,7 +1163,6 @@ func (m *Model) View() string {
 	return mainView + "\n" + m.renderStatusBar()
 }
 
-// renderStatusBar renders the status bar at the bottom
 func (m *Model) renderStatusBar() string {
 	// Show status message if it's active
 	if m.statusMessage != "" && time.Now().Before(m.statusMessageExpiry) {
@@ -975,8 +1178,18 @@ func (m *Model) renderStatusBar() string {
 	statsText := fmt.Sprintf("Selected: %d files (%.1f KB) • Est. Tokens: ~%d",
 		m.selectedCount, float64(m.selectedSize)/1024, m.estimatedTokens)
 
+	// Add bookmark count to stats text if bookmarks exist
+	if len(m.bookmarkStore.Bookmarks) > 0 {
+		statsText = fmt.Sprintf("%s • Bookmarks: %d", statsText, len(m.bookmarkStore.Bookmarks))
+	}
+
 	// Help part
-	helpText := "↑/↓:Navigate • Tab:Select • Space:Expand • Ctrl+A:Select All • Ctrl+D:Deselect All • Ctrl+S:Toggle Content Search"
+	var helpText string
+	if m.showBookmarksMenu {
+		helpText = "Enter:Apply • n:New • d:Delete • r:Rename • Esc:Close"
+	} else {
+		helpText = "Tab:Select • Ctrl+B:Bookmarks • Ctrl+S:Search Mode"
+	}
 
 	// Show content search mode
 	modeText := "Mode: "
@@ -1160,5 +1373,124 @@ func addParentDirs(path, rootPath string, results *[]list.Item, resultPaths *map
 				break
 			}
 		}
+	}
+}
+
+func (m *Model) saveCurrentSelectionAsBookmark(name, description string) error {
+	var selectedPaths []string
+
+	for _, item := range m.items {
+		if item.Selected && !m.isGitIgnored(item.Path) {
+			// Store paths relative to the current working directory
+			relPath, err := filepath.Rel(m.cwd, item.Path)
+			if err == nil {
+				selectedPaths = append(selectedPaths, relPath)
+			} else {
+				selectedPaths = append(selectedPaths, item.Path)
+			}
+		}
+	}
+
+	if len(selectedPaths) == 0 {
+		return fmt.Errorf("no files selected")
+	}
+
+	bookmark := bookmarks.Bookmark{
+		Name:        name,
+		Description: description,
+		FilePaths:   selectedPaths,
+		RootPath:    m.cwd,
+		Created:     time.Now(),
+		Modified:    time.Now(),
+	}
+
+	return m.bookmarkStore.SaveBookmark(bookmark)
+}
+
+// applyBookmark applies a saved bookmark selection
+func (m *Model) applyBookmark(name string) error {
+	bookmark, found := m.bookmarkStore.GetBookmark(name)
+	if !found {
+		return fmt.Errorf("bookmark not found: %s", name)
+	}
+
+	// Reset current selection
+	m.deselectAll()
+
+	// Apply bookmark selection
+	for _, relPath := range bookmark.FilePaths {
+		// Convert relative path to absolute based on current directory
+		absPath := filepath.Join(m.cwd, relPath)
+
+		// Find item and select it
+		for i := range m.items {
+			if m.items[i].Path == absPath {
+				m.toggleSelection(absPath, true)
+
+				// Ensure parent directories are expanded to make the item visible
+				m.ensureParentPathsExpanded(absPath)
+				break
+			}
+		}
+	}
+
+	m.refreshVisibleItems()
+	m.setStatusMessage(fmt.Sprintf("Applied bookmark: %s", name), 2)
+	return nil
+}
+
+// deleteBookmark deletes a bookmark
+func (m *Model) deleteBookmark(name string) error {
+	err := m.bookmarkStore.DeleteBookmark(name)
+	if err != nil {
+		return err
+	}
+
+	m.setStatusMessage(fmt.Sprintf("Deleted bookmark: %s", name), 2)
+	return nil
+}
+
+// renameBookmark renames a bookmark
+func (m *Model) renameBookmark(oldName, newName string) error {
+	// Get the bookmark
+	bookmark, found := m.bookmarkStore.GetBookmark(oldName)
+	if !found {
+		return fmt.Errorf("bookmark not found: %s", oldName)
+	}
+
+	// Delete the old bookmark
+	err := m.bookmarkStore.DeleteBookmark(oldName)
+	if err != nil {
+		return err
+	}
+
+	// Save with new name
+	bookmark.Name = newName
+	bookmark.Modified = time.Now()
+	return m.bookmarkStore.SaveBookmark(bookmark)
+}
+
+// showNewBookmarkDialog shows the dialog for creating a new bookmark
+func (m *Model) showNewBookmarkDialog() {
+	m.textInputModal = ui.NewTextInputModal(
+		"Enter Bookmark Name",
+		"My Bookmark",
+		m.termWidth/2,
+	)
+	m.showTextInputModal = true
+	m.textInputPurpose = "new_bookmark"
+}
+
+// showRenameBookmarkDialog shows the dialog for renaming a bookmark
+func (m *Model) showRenameBookmarkDialog() {
+	if name, ok := m.bookmarksMenu.SelectedBookmark(); ok {
+		m.tempBookmarkName = name
+		m.textInputModal = ui.NewTextInputModal(
+			"Enter New Bookmark Name",
+			name,
+			m.termWidth/2,
+		)
+		m.showTextInputModal = true
+		m.textInputPurpose = "rename_bookmark"
 	}
 }
