@@ -1,10 +1,25 @@
 # LLMDog 🐶
 
-**LLMDog** is a command-line tool designed to help you prepare files for LLM consumption. With an interactive terminal UI built on [Bubble Tea](https://github.com/charmbracelet/bubbletea) and styled with [Lip Gloss](https://github.com/charmbracelet/lipgloss), LLMDog lets you navigate your file system, select files and directories (with support for Gitignore rules and recursive selection), and generate a Markdown-formatted output of your directory structure and file contents. The final output is automatically copied to your clipboard, streamlining your workflow for LLM-based projects.
+**LLMDog** is a developer-friendly command-line tool that simplifies sharing your code with Large Language Models (LLMs) like Claude, ChatGPT, and others. It allows you to intelligently select files and directories from your project, automatically formats them with proper Markdown, and copies the output directly to your clipboard—ready to paste into any LLM chat interface.
+
+## Why Use LLMDog?
+
+- **Streamlined Code Discussions**: Quickly share relevant files with LLMs for code reviews, debugging help, or implementation guidance.
+- **Smart File Selection**: Choose only the files that matter for your question, without the noise of your entire codebase.
+- **Gitignore Integration**: Automatically excludes files like `node_modules`, build artifacts, and other files in your `.gitignore`.
+- **Consistent Formatting**: Ensures your code is properly formatted in Markdown, with syntax highlighting based on file extensions.
+- **Context Preservation**: Includes a directory tree to help LLMs understand your project structure.
+- **Zero Configuration**: Works out of the box with no setup required.
+
+## Example Use Cases
+
+- Get help fixing a bug by sharing only the relevant files
+- Ask for code reviews on specific components of your application
+- Request implementation suggestions for new features
+- Seek assistance with refactoring specific parts of your codebase
+- Generate documentation for your project or specific modules
 
 [![asciicast](https://asciinema.org/a/lq2kdE5H1efWxz8296EfZVfHk.svg)](https://asciinema.org/a/lq2kdE5H1efWxz8296EfZVfHk)
-
-> **Inspiration:** This project was inspired by [llmcat](https://github.com/azer/llmcat).
 
 ## Features
 
@@ -64,6 +79,15 @@ Run **LLMDog** from your terminal:
 - **Enter**: Confirm selection and generate the Markdown output (which is also copied to your clipboard)
 - **q**: Quit the application
 
+## Workflow Example
+
+1. Navigate to your project directory
+2. Run `LLMDog`
+3. Use the arrow keys to navigate and Tab to select relevant files
+4. Press Enter to generate the Markdown output and copy it to your clipboard
+5. Paste directly into your favorite LLM chat interface
+6. Ask your question about the code you've shared
+
 ## Contributing
 
 Contributions are welcome! If you find bugs or have ideas for improvements, please open an issue or submit a pull request. For major changes, please open an issue first to discuss what you would like to change.
@@ -80,4 +104,3 @@ To run and develop **LLMDog**, ensure you have the latest version of Go installe
 ## License
 
 This project is licensed under the MIT License. See the LICENSE file for details.
-
