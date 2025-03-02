@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,10 +18,12 @@ var (
 	// Base styles
 	HeaderStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("205"))
+			Foreground(lipgloss.Color("205")).
+			Padding(1, 0)
 
 	PreviewStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("240")).
 			Padding(1, 2)
 
 	// Item styles
@@ -28,7 +31,8 @@ var (
 			Foreground(lipgloss.Color("252"))
 
 	SelectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("86"))
+			Foreground(lipgloss.Color("86")).
+			Bold(true)
 
 	GitIgnoredStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241")).
@@ -40,24 +44,35 @@ var (
 	HighlightStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("205"))
 
-	CursorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("69")).
-			Bold(true)
+	ContentMatchStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("220")).
+				Bold(true)
 
-	// File preview constants
-	maxPreviewBytes = 10000
-	maxPreviewLines = 30
+	CursorStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("62")).
+			Foreground(lipgloss.Color("255"))
+
+	SelectedCursorStyle = lipgloss.NewStyle().
+				Background(lipgloss.Color("62")).
+				Foreground(lipgloss.Color("87")).
+				Bold(true)
+
+	EmphasisStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("205")).
+			Bold(true)
 )
 
 // FileItem represents a file or directory in the file system
 type FileItem struct {
-	Path       string
-	Name       string
-	IsDir      bool
-	Selected   bool
-	Depth      int
-	Expanded   bool
-	GitIgnored bool
+	Path           string
+	Name           string
+	IsDir          bool
+	Selected       bool
+	Depth          int
+	Expanded       bool
+	GitIgnored     bool
+	ChildrenLoaded bool
+	MatchesContent bool
 }
 
 func (f FileItem) Title() string {
@@ -93,6 +108,9 @@ func (f FileItem) Title() string {
 }
 
 func (f FileItem) Description() string {
+	if f.MatchesContent {
+		return "content match"
+	}
 	if f.GitIgnored {
 		return "gitignored"
 	}
@@ -146,11 +164,11 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 		builder.WriteString("  ")
 	}
 
-	// Add selection indicator
+	// Add selection indicator with more visible checkboxes
 	if i.Selected {
-		builder.WriteString("[✓] ")
+		builder.WriteString("✅ ")
 	} else {
-		builder.WriteString("[ ] ")
+		builder.WriteString("☐  ")
 	}
 
 	// Add appropriate icon and name
@@ -158,6 +176,11 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 	builder.WriteString(icon)
 	builder.WriteString(" ")
 	builder.WriteString(i.Name)
+
+	// Add content match indicator
+	if i.MatchesContent {
+		builder.WriteString(" 🔍")
+	}
 
 	// Add size/count info
 	info := getFileInfo(i)
@@ -169,17 +192,18 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 	// Apply appropriate style based on item state
 	if i.GitIgnored {
 		style = style.Inherit(GitIgnoredStyle)
+	} else if i.Selected && index == m.Index() {
+		style = style.Inherit(SelectedCursorStyle)
 	} else if i.Selected {
 		style = style.Inherit(SelectedStyle)
+	} else if i.MatchesContent {
+		style = style.Inherit(ContentMatchStyle)
 	} else if i.IsDir {
 		style = style.Inherit(FolderStyle)
+	} else if index == m.Index() {
+		style = style.Inherit(CursorStyle)
 	} else {
 		style = style.Inherit(NormalStyle)
-	}
-
-	// Highlight if current item
-	if index == m.Index() {
-		style = style.Inherit(HighlightStyle)
 	}
 
 	fmt.Fprint(w, style.Render(builder.String()))
@@ -187,7 +211,7 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 
 func getFileIcon(name string, isDir bool) string {
 	if isDir {
-		return "🦴" // Directory icon
+		return "📁" // Directory icon
 	}
 
 	ext := strings.ToLower(filepath.Ext(name))
@@ -277,11 +301,19 @@ func getFileInfo(item FileItem) string {
 }
 
 // LoadFiles walks through the directory tree and returns a slice of FileItems
-func LoadFiles(root string, gitRegex *regexp.Regexp) []FileItem {
+func LoadFiles(root string, gitRegex *regexp.Regexp, showHidden bool) []FileItem {
 	var items []FileItem
 
 	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil || path == root {
+			return nil
+		}
+
+		// Skip hidden files if not enabled
+		if !showHidden && isHiddenFile(info.Name()) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 
@@ -293,13 +325,14 @@ func LoadFiles(root string, gitRegex *regexp.Regexp) []FileItem {
 		isGitIgnored := gitRegex != nil && gitRegex.MatchString(path)
 
 		item := FileItem{
-			Path:       path,
-			Name:       info.Name(),
-			IsDir:      info.IsDir(),
-			Selected:   false,
-			Depth:      depth,
-			Expanded:   false,
-			GitIgnored: isGitIgnored,
+			Path:           path,
+			Name:           info.Name(),
+			IsDir:          info.IsDir(),
+			Selected:       false,
+			Depth:          depth,
+			Expanded:       false,
+			GitIgnored:     isGitIgnored,
+			ChildrenLoaded: false,
 		}
 
 		items = append(items, item)
@@ -315,12 +348,71 @@ func LoadFiles(root string, gitRegex *regexp.Regexp) []FileItem {
 	return items
 }
 
+// isHiddenFile checks if a file is hidden
+func isHiddenFile(name string) bool {
+	return strings.HasPrefix(name, ".")
+}
+
+// LoadDirectoryChildren loads only the direct children of a directory
+func LoadDirectoryChildren(dirPath string, gitRegex *regexp.Regexp, showHidden bool) ([]FileItem, error) {
+	var items []FileItem
+
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading directory %s: %w", dirPath, err)
+	}
+
+	// Calculate depth
+	rel, err := filepath.Rel(dirPath, dirPath)
+	if err != nil {
+		rel = dirPath
+	}
+	baseDepth := len(strings.Split(rel, string(os.PathSeparator)))
+	if baseDepth == 0 {
+		baseDepth = 1
+	}
+
+	for _, entry := range entries {
+		name := entry.Name()
+		path := filepath.Join(dirPath, name)
+
+		// Skip hidden files if not enabled
+		if !showHidden && isHiddenFile(name) {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			// Skip entries with errors instead of failing
+			continue
+		}
+
+		// Check if item is gitignored
+		isGitIgnored := gitRegex != nil && gitRegex.MatchString(path)
+
+		item := FileItem{
+			Path:           path,
+			Name:           name,
+			IsDir:          info.IsDir(),
+			Selected:       false,
+			Depth:          baseDepth,
+			Expanded:       false,
+			GitIgnored:     isGitIgnored,
+			ChildrenLoaded: false,
+		}
+
+		items = append(items, item)
+	}
+
+	return items, nil
+}
+
 // LoadPreview generates a preview of the file or directory content
-func LoadPreview(path string, isDir bool) string {
+func LoadPreview(path string, isDir bool, maxSize int) string {
 	if isDir {
 		return loadDirectoryPreview(path)
 	}
-	return loadFilePreview(path)
+	return loadFilePreview(path, maxSize)
 }
 
 func loadDirectoryPreview(path string) string {
@@ -334,20 +426,37 @@ func loadDirectoryPreview(path string) string {
 
 	// Count files and subdirectories
 	var files, dirs int
+	var fileTypes = make(map[string]int)
+
 	for _, entry := range entries {
 		if entry.IsDir() {
 			dirs++
 		} else {
 			files++
+			ext := strings.ToLower(filepath.Ext(entry.Name()))
+			if ext != "" {
+				fileTypes[ext]++
+			} else {
+				fileTypes["(no extension)"]++
+			}
 		}
 	}
 	builder.WriteString(fmt.Sprintf("Contains: %d files, %d directories\n\n", files, dirs))
+
+	// Show file type breakdown
+	if len(fileTypes) > 0 {
+		builder.WriteString("File types:\n")
+		for ext, count := range fileTypes {
+			builder.WriteString(fmt.Sprintf("- %s: %d files\n", ext, count))
+		}
+		builder.WriteString("\n")
+	}
 
 	// List contents
 	builder.WriteString("Contents:\n")
 	for _, entry := range entries {
 		if entry.IsDir() {
-			builder.WriteString(fmt.Sprintf("🦴 %s/\n", entry.Name()))
+			builder.WriteString(fmt.Sprintf("📁 %s/\n", entry.Name()))
 		} else {
 			icon := getFileIcon(entry.Name(), false)
 			builder.WriteString(fmt.Sprintf("%s %s\n", icon, entry.Name()))
@@ -357,7 +466,20 @@ func loadDirectoryPreview(path string) string {
 	return builder.String()
 }
 
-func loadFilePreview(path string) string {
+var previewCache = struct {
+	sync.RWMutex
+	cache map[string]string
+}{cache: make(map[string]string)}
+
+func loadFilePreview(path string, maxSize int) string {
+	// Check cache first
+	previewCache.RLock()
+	if preview, ok := previewCache.cache[path]; ok {
+		previewCache.RUnlock()
+		return preview
+	}
+	previewCache.RUnlock()
+
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Sprintf("Error reading file: %v", err)
@@ -375,8 +497,20 @@ func loadFilePreview(path string) string {
 	builder.WriteString(fmt.Sprintf("Size: %s\n", formatSize(info.Size())))
 	builder.WriteString(fmt.Sprintf("Modified: %s\n\n", info.ModTime().Format("2006-01-02 15:04:05")))
 
+	// Determine how to preview based on file type
+	ext := strings.ToLower(filepath.Ext(path))
+	isText := isTextFile(ext)
+
+	if !isText {
+		builder.WriteString(fmt.Sprintf("Binary file detected (%s format)\n", ext))
+		return builder.String()
+	}
+
 	// Read file content
-	data := make([]byte, maxPreviewBytes)
+	if maxSize <= 0 {
+		maxSize = 10000 // Default
+	}
+	data := make([]byte, maxSize)
 	n, err := file.Read(data)
 	if err != nil && err != io.EOF {
 		return fmt.Sprintf("Error reading file content: %v", err)
@@ -387,14 +521,57 @@ func loadFilePreview(path string) string {
 	lines := strings.Split(content, "\n")
 
 	// Truncate if too many lines
-	if len(lines) > maxPreviewLines {
-		lines = append(lines[:maxPreviewLines], "... (content truncated)")
+	maxLines := 50
+	if len(lines) > maxLines {
+		lines = append(lines[:maxLines], "... (content truncated)")
 	}
 
-	builder.WriteString("Content Preview:\n")
+	// Add syntax highlighting clues
+	builder.WriteString("Content Preview:")
+
+	// Simple syntax highlighting for common file types
+	switch ext {
+	case ".go", ".js", ".ts", ".py", ".java", ".c", ".cpp", ".cs":
+		builder.WriteString(" (code)")
+	case ".md", ".txt", ".rst":
+		builder.WriteString(" (text)")
+	case ".json", ".yaml", ".yml", ".toml":
+		builder.WriteString(" (config)")
+	case ".html", ".xml", ".svg":
+		builder.WriteString(" (markup)")
+	case ".css", ".scss":
+		builder.WriteString(" (style)")
+	}
+
+	builder.WriteString("\n")
 	builder.WriteString(strings.Join(lines, "\n"))
 
-	return builder.String()
+	result := builder.String()
+
+	// Cache the result
+	previewCache.Lock()
+	previewCache.cache[path] = result
+	previewCache.Unlock()
+
+	return result
+}
+
+// isTextFile checks if a file is likely a text file based on extension
+func isTextFile(ext string) bool {
+	textExtensions := []string{
+		".txt", ".md", ".go", ".py", ".js", ".ts", ".html", ".css", ".json",
+		".yaml", ".yml", ".xml", ".csv", ".sh", ".bash", ".toml", ".c", ".cpp",
+		".h", ".hpp", ".java", ".properties", ".log", ".svg", ".sql",
+		".gitignore", ".env", ".rs", ".rb", ".php",
+	}
+
+	for _, textExt := range textExtensions {
+		if ext == textExt {
+			return true
+		}
+	}
+
+	return false
 }
 
 func formatSize(size int64) string {
@@ -413,4 +590,30 @@ func formatSize(size int64) string {
 // RenderHeader renders the application header
 func RenderHeader(title string) string {
 	return HeaderStyle.Render(fmt.Sprintf("🐕 %s", title))
+}
+
+// RenderLoading renders a loading indicator
+func RenderLoading(message string) string {
+	return EmphasisStyle.Render(fmt.Sprintf("Loading: %s", message))
+}
+
+func TruncatePreview(preview string, maxLines int) string {
+	if maxLines <= 0 {
+		return preview
+	}
+
+	lines := strings.Split(preview, "\n")
+	if len(lines) <= maxLines {
+		return preview
+	}
+
+	// Keep the first few lines with file info and truncate the content
+	headerLines := 5                           // Keep file info, size, etc.
+	contentLines := maxLines - headerLines - 1 // Reserve one line for truncation message
+
+	result := append(lines[:headerLines], "...")
+	result = append(result, lines[len(lines)-contentLines:]...)
+	result = append(result, fmt.Sprintf("(Showing %d of %d lines)", maxLines, len(lines)))
+
+	return strings.Join(result, "\n")
 }
