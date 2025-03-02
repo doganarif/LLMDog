@@ -2,104 +2,168 @@
 
 **LLMDog** is a developer-friendly command-line tool that simplifies sharing your code with Large Language Models (LLMs) like Claude, ChatGPT, and others. It allows you to intelligently select files and directories from your project, automatically formats them with proper Markdown, and copies the output directly to your clipboard—ready to paste into any LLM chat interface.
 
-## Why Use LLMDog?
-
-- **Streamlined Code Discussions**: Quickly share relevant files with LLMs for code reviews, debugging help, or implementation guidance.
-- **Smart File Selection**: Choose only the files that matter for your question, without the noise of your entire codebase.
-- **Gitignore Integration**: Automatically excludes files like `node_modules`, build artifacts, and other files in your `.gitignore`.
-- **Consistent Formatting**: Ensures your code is properly formatted in Markdown, with syntax highlighting based on file extensions.
-- **Context Preservation**: Includes a directory tree to help LLMs understand your project structure.
-- **Zero Configuration**: Works out of the box with no setup required.
-
-## Example Use Cases
-
-- Get help fixing a bug by sharing only the relevant files
-- Ask for code reviews on specific components of your application
-- Request implementation suggestions for new features
-- Seek assistance with refactoring specific parts of your codebase
-- Generate documentation for your project or specific modules
-
 [![asciicast](https://asciinema.org/a/lq2kdE5H1efWxz8296EfZVfHk.svg)](https://asciinema.org/a/lq2kdE5H1efWxz8296EfZVfHk)
 
-## Features
+## Why LLMDog?
 
-- **Interactive TUI:** Browse and navigate your files and directories with an intuitive interface.
-- **Recursive File & Directory Selection:** Easily select whole directories while automatically handling nested files and skipping Gitignored paths.
-- **Gitignore Support:** Automatically respects your `.gitignore` file to exclude irrelevant files.
-- **Markdown Output:** Generates a well-formatted Markdown report, complete with a file tree and file contents.
-- **Clipboard Integration:** The output is copied directly to your clipboard for quick sharing and use.
-- **Cross-Platform:** Built with Go, LLMDog works on macOS, Linux, and Windows.
+### The Problem
+Working with LLMs on code-related tasks often requires sharing multiple files or code snippets from your project. The traditional approach involves:
+- Manually copying individual files
+- Formatting each file with proper Markdown code blocks
+- Ensuring context about file location and project structure
+- Repeating this tedious process for each LLM conversation
 
-## Installation
+This is time-consuming, error-prone, and interrupts your workflow.
 
-### From Source
+### The Solution
+LLMDog streamlines this entire process with an intuitive interface that lets you:
+- Quickly navigate and select exactly the files you need
+- Generate properly formatted Markdown output with file structure
+- Have everything copied to your clipboard in one step
+- Save common file selections as bookmarks for reuse
 
-Ensure you have [Go](https://golang.org/) installed (version 1.16 or higher is recommended). Then, clone the repository and build the application:
+## When to Use LLMDog
 
+### Code Reviews and Feedback
+When seeking feedback on your code, LLMDog helps you present your code in a structured way that preserves context. LLMs can better understand your architecture and provide more valuable feedback when they see both the code and its organization within your project.
+
+### Debugging Assistance
+Stuck on a difficult bug? LLMDog makes it easy to share the relevant files without having to individually copy each one. Include unit tests, error logs, and implementation files in a single selection to give LLMs the complete picture they need to help.
+
+### Learning New Codebases
+When working with unfamiliar code, use LLMDog to select parts of the codebase you don't understand and ask LLMs for explanations. The tool preserves file relationships and project structure, helping LLMs provide more accurate explanations of how components interact.
+
+### Architecture and Design Discussions
+Share your current implementation with an LLM before discussing potential architecture changes. LLMDog helps you include all the relevant components so the LLM can suggest improvements with full context.
+
+### Documentation Generation
+Need documentation for your code? Select the files that need documentation and ask an LLM to generate it. The structured output from LLMDog gives the LLM everything it needs to create accurate and comprehensive documentation.
+
+### Onboarding Team Members
+Create bookmarks of critical code paths and share them with new team members. They can use these bookmarks with LLMDog to quickly get explanations of core functionality from LLMs.
+
+## Key Features
+
+### 🔖 Bookmarks System (New in 2.0)
+Save time with reusable file selections:
+- Store commonly used file combinations for different components
+- Quickly switch between different aspects of your project
+- Share bookmark configurations with team members for consistent LLM interactions
+- Access bookmarks with `Ctrl+B`, create with `Ctrl+Shift+B`
+
+### 🔍 Intelligent Search (Enhanced in 2.0)
+Find exactly what you need:
+- Content search mode finds code by its content, not just filename
+- Visual indicators show which files contain your search terms
+- Automatically expands relevant directories to show matches
+- Search history for quick refinement of searches
+
+### 📂 Smart File Selection
+Work efficiently with your project structure:
+- Recursive selection of directories with a single click
+- Automatic exclusion of irrelevant files using your .gitignore
+- Expand/collapse folders to navigate large projects with ease
+- Select all visible files with `Ctrl+A` or deselect all with `Ctrl+D`
+
+### 📋 Optimized for LLM Consumption
+Generate output that maximizes LLM understanding:
+- Includes directory structure for context
+- Formats code with language-specific syntax highlighting
+- Smart truncation of large files to fit within token limits
+- Properly labeled file paths for clear references
+
+## Getting Started
+
+### Installation
+
+#### From Source
 ```bash
 git clone https://github.com/doganarif/LLMDog.git
 cd LLMDog
 go build -o LLMDog ./cmd/LLMDog
 ```
 
-### Homebrew (macOS)
-
-For macOS users, you can install **LLMDog** using Homebrew with my custom tap:
-
-1. Tap the repository:
-   ```bash
-   brew tap doganarif/LLMDog
-   ```
-
-2. Install LLMDog:
-   ```bash
-   brew install LLMDog
-   ```
-
-## Usage
-
-Run **LLMDog** from your terminal:
-
+#### Homebrew (macOS)
 ```bash
-./LLMDog [options]
+brew tap doganarif/LLMDog
+brew install LLMDog
 ```
 
-### Command-Line Options
+### Basic Workflow
 
-- `-h, --help`: Show the help message
-- `-v, --version`: Display the application version
+1. **Navigate** to your project directory
+2. **Run** LLMDog: `LLMDog`
+3. **Select files** using the interactive interface:
+   - Navigate with arrow keys (↑/↓)
+   - Expand/collapse folders with Space
+   - Select files and directories with Tab
+   - Filter with /
+4. **Press Enter** to generate the output and copy to clipboard
+5. **Paste** into your LLM chat
+6. **Ask your question** with full code context
 
-### Interactive TUI Keys
+### Bookmarks Workflow (New in 2.0)
 
-- **↑/↓**: Navigate through list items
-- **Space**: Expand or collapse folders
-- **Tab**: Select or unselect an item
-- **/**: Filter items
-- **ctrl+/**: Toggle the preview pane
-- **Enter**: Confirm selection and generate the Markdown output (which is also copied to your clipboard)
-- **q**: Quit the application
+Bookmarks streamline repetitive tasks:
 
-## Workflow Example
+1. **Creating a bookmark**:
+   - Select your files
+   - Press `Ctrl+Shift+B`
+   - Name your bookmark
+   - Optionally add a description
 
-1. Navigate to your project directory
-2. Run `LLMDog`
-3. Use the arrow keys to navigate and Tab to select relevant files
-4. Press Enter to generate the Markdown output and copy it to your clipboard
-5. Paste directly into your favorite LLM chat interface
-6. Ask your question about the code you've shared
+2. **Using bookmarks**:
+   - Press `Ctrl+B` to view your saved bookmarks
+   - Select the bookmark you need
+   - Press Enter to automatically select those files
+   - Continue as usual
+
+### Content Search (New in 2.0)
+
+Finding relevant code is easier:
+
+1. Press `/` to start searching
+2. Toggle content search with `Ctrl+S`
+3. Enter your search term
+4. Navigate matches and select what you need
+
+## Keyboard Shortcuts
+
+| Key            | Action                          |
+|----------------|----------------------------------|
+| ↑/↓            | Navigate items                  |
+| Space          | Expand/collapse folder          |
+| Tab            | Select/unselect item            |
+| /              | Filter items                    |
+| Enter          | Confirm selection               |
+| Ctrl+A         | Select all visible items        |
+| Ctrl+D         | Deselect all items              |
+| Ctrl+S         | Toggle content search mode      |
+| Ctrl+B         | Open bookmarks menu             |
+| Ctrl+Shift+B   | Save selection as bookmark      |
+| Ctrl+/         | Toggle preview pane             |
+| Esc            | Clear filter/close modal        |
+| q              | Quit                            |
+
+## Command-Line Options
+
+```bash
+LLMDog [options]
+```
+
+- `-h, --help`: Show help message
+- `-v, --version`: Show version
+- `--about`: Display information about LLMDog
+
+## Configuration
+
+LLMDog stores configuration in `~/.config/llmdog/`:
+- `config.json`: General settings
+- `bookmarks.json`: Saved bookmarks
 
 ## Contributing
 
-Contributions are welcome! If you find bugs or have ideas for improvements, please open an issue or submit a pull request. For major changes, please open an issue first to discuss what you would like to change.
-
-## Development
-
-To run and develop **LLMDog**, ensure you have the latest version of Go installed. Clone the repository, make your changes, and submit pull requests. Your contributions help improve the tool for everyone.
-
-## Acknowledgements
-
-- **llmcat**: For the initial inspiration behind this project
-- **Bubble Tea & Lip Gloss**: For providing the powerful TUI libraries that make this project possible
+Contributions are welcome! Whether it's bug reports, feature requests, or code contributions, please feel free to engage with the project.
 
 ## License
 
