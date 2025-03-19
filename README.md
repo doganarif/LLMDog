@@ -1,8 +1,10 @@
+<a href="https://syntaks.ai" target="_blank"><img src="https://img.shields.io/badge/syntaks.ai-AI%20MVPs%20in%204%20Weeks-f39c12?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEyIDJsMyAxMC0xMCA5eiIgZmlsbD0iIzAwZmY5ZCIvPjwvc3ZnPg==" alt="syntaks.ai - AI MVPs in 4 Weeks"></a>
 # LLMDog 🐶
 
 **LLMDog** is a developer-friendly command-line tool that simplifies sharing your code with Large Language Models (LLMs) like Claude, ChatGPT, and others. It allows you to intelligently select files and directories from your project, automatically formats them with proper Markdown, and copies the output directly to your clipboard—ready to paste into any LLM chat interface.
 
 <a href="https://www.producthunt.com/posts/llmdog?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-llmdog" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=938141&theme=light&t=1741167251516" alt="LLMDog - Your&#0032;code&#0039;s&#0032;best&#0032;friend&#0032;for&#0032;seamless&#0032;LLM&#0032;conversations | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+
 
 ## Why Use LLMDog?
 
