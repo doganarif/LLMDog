@@ -108,3 +108,15 @@ To run and develop **LLMDog**, ensure you have the latest version of Go installe
 ## License
 
 This project is licensed under the MIT License. See the LICENSE file for details.
+
+<!-- arif-signature:start -->
+
+---
+
+Built by [Arif Dogan](https://arif.sh) - production AI and backend engineer.
+
+I help SaaS teams ship production AI features, fast backends, and reliable developer tools.
+
+[Work with me](https://arif.sh/work) | [Book a 30-min intro](https://calendar.superhuman.com/book/11SzDRA4zo8tuYoehO/A3kIl)
+
+<!-- arif-signature:end -->
